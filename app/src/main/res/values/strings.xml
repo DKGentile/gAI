@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">gAI</string>
+    <string name="take_picture">Take Picture</string>
+    <string name="image_description">Captured image preview</string>
+</resources>
