@@ -1,111 +1,161 @@
 package com.example.gai
 
-import android.content.Context
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
-import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import android.view.View
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.tooling.preview.PreviewParameter
-import androidx.compose.ui.platform.LocalContext
-import com.example.gai.ui.theme.GAITheme
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
+class MainActivity : AppCompatActivity() {
+    private lateinit var mainLayout: ConstraintLayout
+    private lateinit var imageView: ImageView
+    private lateinit var btnTakePicture: Button
+    private lateinit var confirmLayout: LinearLayout
+    private lateinit var btnConfirm: Button
+    private lateinit var btnRetake: Button
+    private var capturedImage: Bitmap? = null
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            GAITheme {
-                CameraScreen()
+    private val cameraLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val imageBitmap = result.data?.extras?.get("data") as? Bitmap
+            imageBitmap?.let {
+                capturedImage = it
+                imageView.setImageBitmap(it)
+                imageView.visibility = View.VISIBLE
+                confirmLayout.visibility = View.VISIBLE
             }
         }
     }
-}
 
-@Composable
-fun CameraScreen() {
-    val imageUri = remember { mutableStateOf<Uri?>(null) } // Stores the captured image URI
-    val bitmap = remember { mutableStateOf<Bitmap?>(null) } // Stores the captured bitmap
-    val context = LocalContext.current // Correctly get the context
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-    // Ensure rememberLauncherForActivityResult is used correctly
-    val takePictureLauncher: ActivityResultLauncher<Uri> =
-        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-            if (success) {
-                // Convert the URI to a bitmap after the photo is taken
-                imageUri.value?.let { uri ->
-                    try {
-                        bitmap.value = MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
+        mainLayout = findViewById(R.id.main)  // Get the root layout
+
+        // Remove any existing child views (to avoid duplicates)
+        mainLayout.removeAllViews()
+
+        // Create ImageView dynamically
+        imageView = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                600
+            )
+            visibility = View.GONE
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        mainLayout.addView(imageView)
+
+        // Create Take Picture Button
+        btnTakePicture = Button(this).apply {
+            text = "Take Picture"
+            setOnClickListener {
+                if (checkCameraPermission()) {
+                    openCamera()
+                } else {
+                    requestCameraPermission()
                 }
+            }
+        }
+        mainLayout.addView(btnTakePicture)
+
+        // Create Confirmation Layout (LinearLayout)
+        confirmLayout = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+            visibility = View.GONE
+        }
+
+        // Create Confirm Button
+        btnConfirm = Button(this).apply {
+            text = "Confirm"
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "Picture Confirmed!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Create Retake Button
+        btnRetake = Button(this).apply {
+            text = "Retake"
+            setOnClickListener {
+                confirmLayout.visibility = View.GONE
+                imageView.visibility = View.GONE
+                imageView.setImageBitmap(null)
+            }
+        }
+
+        // Add buttons to confirmation layout
+        confirmLayout.addView(btnConfirm)
+        confirmLayout.addView(btnRetake)
+
+        // Add confirmation layout to main layout
+        mainLayout.addView(confirmLayout)
+    }
+
+    private fun openCamera() {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        cameraLauncher.launch(intent)
+    }
+
+    private fun checkCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestCameraPermission() {
+        ActivityCompat.requestPermissions(
+            this, arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_CODE
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CAMERA_PERMISSION_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                openCamera()
             } else {
-                Toast.makeText(context, "Failed to capture image", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        content = { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Button(onClick = {
-                    // Launch camera intent to capture the image
-                    val tempUri: Uri = createImageUri(context)
-                    imageUri.value = tempUri
-                    takePictureLauncher.launch(tempUri)
-                }) {
-                    Text(text = "Take Picture")
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                bitmap.value?.let { capturedBitmap ->
-                    Image(
-                        bitmap = capturedBitmap.asImageBitmap(),
-                        contentDescription = "Captured Image",
-                        modifier = Modifier.fillMaxWidth().height(250.dp)
-                    )
+                if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+                    // User denied permission without selecting "Don't ask again"
+                    Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
+                } else {
+                    // User permanently denied permission (selected "Don't ask again")
+                    showPermissionDeniedDialog()
                 }
             }
         }
-    )
-}
+    }
 
-fun createImageUri(context: Context): Uri {
-    val file = File(context.cacheDir, "captured_image.jpg")
-    return Uri.fromFile(file)
-}
+    private fun showPermissionDeniedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Camera Permission Denied")
+            .setMessage("You have permanently denied the camera permission. Please go to settings to allow it.")
+            .setPositiveButton("Go to Settings") { _, _ ->
+                // Open app settings to allow the user to change permission
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = android.net.Uri.parse("package:$packageName")
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
-@Preview(showBackground = true)
-@Composable
-fun CameraScreenPreview() {
-    GAITheme {
-        CameraScreen()
+    companion object {
+        private const val CAMERA_PERMISSION_CODE = 1001
     }
 }
