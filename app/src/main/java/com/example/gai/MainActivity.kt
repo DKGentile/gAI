@@ -67,7 +67,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        mainLayout.addView(btnTakePicture)
 
         // Create Confirmation Layout (LinearLayout)
         confirmLayout = LinearLayout(this).apply {
