@@ -1,38 +1,73 @@
 package com.example.gai
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.camera.view.PreviewView
+import android.view.Gravity
+import android.view.View
+import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
 import java.io.File
 
 class MainActivity : AppCompatActivity(), CameraManager.FileCallback {
 
-    private lateinit var mainLayout: ConstraintLayout
+    private lateinit var mainLayout: FrameLayout
+    private lateinit var previewView: PreviewView
     private lateinit var imageView: ImageView
     private lateinit var btnTakePicture: Button
-    private lateinit var confirmLayout: LinearLayout
     private lateinit var btnConfirm: Button
     private lateinit var btnRetake: Button
+    private lateinit var btnToggleFlash: ImageButton // Added for the flashlight toggle
 
     private lateinit var cameraManager: CameraManager
 
-    // Store the image file once it is ready.
     private var capturedImageFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
-        mainLayout = findViewById(R.id.main)
-        mainLayout.removeAllViews()
+        // Create root layout programmatically
+        mainLayout = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        setContentView(mainLayout)
+
+        // Set up camera preview
+        previewView = PreviewView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        mainLayout.addView(previewView)
 
         setupViews()
+
+        // Start camera preview
         cameraManager = CameraManager(this, this)
+        cameraManager.startCameraPreview(this, previewView)
     }
 
     private fun setupViews() {
+        val verticalLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
+            ).apply {
+                bottomMargin = 60
+            }
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+
         imageView = ImageView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -40,54 +75,68 @@ class MainActivity : AppCompatActivity(), CameraManager.FileCallback {
             )
             scaleType = ImageView.ScaleType.CENTER_CROP
         }
-        mainLayout.addView(imageView)
+        verticalLayout.addView(imageView)
 
         btnTakePicture = Button(this).apply {
             text = "Take Picture"
             setOnClickListener {
-                cameraManager.startCameraWorkflow()
+                cameraManager.takePicture() // ← this now captures instantly from preview
             }
         }
-        mainLayout.addView(btnTakePicture)
-
-        confirmLayout = LinearLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            orientation = LinearLayout.HORIZONTAL
-        }
+        verticalLayout.addView(btnTakePicture)
 
         btnConfirm = Button(this).apply {
             text = "Confirm"
             setOnClickListener {
                 Toast.makeText(this@MainActivity, "Picture Confirmed!", Toast.LENGTH_SHORT).show()
-                // Send the image file to your API
                 capturedImageFile?.let { file ->
                     ApiUploader.uploadImage(file)
                 }
             }
+            visibility = View.GONE
         }
+
         btnRetake = Button(this).apply {
-            text = "Retake"
+            text = "Delete"
             setOnClickListener {
-                confirmLayout.visibility = android.view.View.GONE
+                btnConfirm.visibility = View.GONE
+                btnRetake.visibility = View.GONE
                 imageView.setImageDrawable(null)
             }
+            visibility = View.GONE
         }
-        confirmLayout.addView(btnConfirm)
-        confirmLayout.addView(btnRetake)
-        mainLayout.addView(confirmLayout)
+
+        verticalLayout.addView(btnConfirm)
+        verticalLayout.addView(btnRetake)
+
+        mainLayout.addView(verticalLayout)
+
+        // Flashlight button setup (top-right)
+        btnToggleFlash = ImageButton(this).apply {
+            setImageResource(android.R.drawable.btn_star_big_on) // Placeholder for the flashlight icon
+            layoutParams = FrameLayout.LayoutParams(
+                100, // Size of the button (circle)
+                100,
+                Gravity.TOP or Gravity.END
+            ).apply {
+                topMargin = 20
+                rightMargin = 20
+            }
+            setBackgroundResource(android.R.color.transparent) // Transparent background for circle effect
+            setOnClickListener {
+                cameraManager.toggleFlash() // Toggle flashlight on button click
+            }
+        }
+        mainLayout.addView(btnToggleFlash)
     }
 
-    /**
-     * Called by CameraManager when the image file is ready.
-     */
     override fun onImageFileReady(file: File?) {
         capturedImageFile = file
-        // Optionally, you could display the file using libraries such as Glide or decode a Bitmap from file.
-        imageView.setImageURI(android.net.Uri.fromFile(file))
-        confirmLayout.visibility = android.view.View.VISIBLE
+        file?.let {
+            val intent = Intent(this, ReviewImageActivity::class.java)
+            intent.putExtra("image_path", it.absolutePath)
+            startActivity(intent)
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

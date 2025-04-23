@@ -2,24 +2,19 @@ package com.example.gai
 
 import android.Manifest
 import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
+import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * This class now creates a temporary file so that the camera output is cached on disk.
- */
 class CameraManager(
     private val activity: Activity,
     private val callback: FileCallback
@@ -30,29 +25,78 @@ class CameraManager(
     }
 
     private val CAMERA_PERMISSION_CODE = 1001
-    private var imageFile: File? = null
+    private var imageCapture: ImageCapture? = null
+    private var preview: Preview? = null
+    private var cameraProvider: ProcessCameraProvider? = null
 
-    // Launcher for the camera activity using Activity Result API.
-    private val cameraLauncher: ActivityResultLauncher<Intent> =
-        (activity as? MainActivity)?.registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            // When using EXTRA_OUTPUT, data may be null
-            if (result.resultCode == Activity.RESULT_OK) {
-                // Now imageFile should contain the photo path.
-                callback.onImageFileReady(imageFile)
-            }
-        } ?: throw IllegalStateException("Activity must be an instance of MainActivity")
+    private var cameraControl: CameraControl? = null
+    private var torchEnabled = false
 
-    /**
-     * Starts the camera workflow: checks permissions and opens the camera with a file URI.
-     */
-    fun startCameraWorkflow() {
-        if (isCameraPermissionGranted()) {
-            launchCameraWithFile()
-        } else {
+    fun startCameraPreview(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+        if (!isCameraPermissionGranted()) {
             requestCameraPermission()
+            return
         }
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(activity)
+
+        cameraProviderFuture.addListener({
+            cameraProvider = cameraProviderFuture.get()
+
+            preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
+
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                cameraProvider?.unbindAll()
+                val camera = cameraProvider?.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+                cameraControl = camera?.cameraControl
+            } catch (exc: Exception) {
+                Toast.makeText(activity, "Camera init failed: ${exc.message}", Toast.LENGTH_SHORT).show()
+            }
+
+        }, ContextCompat.getMainExecutor(activity))
+    }
+
+    fun takePicture() {
+        if (!isCameraPermissionGranted()) {
+            requestCameraPermission()
+            return
+        }
+
+        val outputFile = createImageFile() ?: return
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+
+        imageCapture?.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(activity),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    callback.onImageFileReady(outputFile)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Toast.makeText(activity, "Image capture failed: ${exception.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    fun toggleFlash() {
+        torchEnabled = !torchEnabled
+        cameraControl?.enableTorch(torchEnabled)
     }
 
     private fun isCameraPermissionGranted(): Boolean {
@@ -61,38 +105,15 @@ class CameraManager(
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun launchCameraWithFile() {
-        // Create a temporary image file
-        imageFile = createImageFile()
-        imageFile?.let { file ->
-            // Use FileProvider to generate a content URI for the file.
-            val fileUri: Uri = FileProvider.getUriForFile(
-                activity,
-                "${activity.packageName}.fileprovider",
-                file
-            )
-            // Prepare the intent and assign the file URI.
-            val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-                putExtra(MediaStore.EXTRA_OUTPUT, fileUri)
-            }
-            cameraLauncher.launch(cameraIntent)
-        }
-    }
-
-    /**
-     * Creates a temporary image file in the app's cache directory.
-     */
     @Throws(IOException::class)
     private fun createImageFile(): File? {
-        // Create an image file name with a timestamp
         val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val imageFileName = "JPEG_${timeStamp}_"
-        // For caching, consider using the cache directory.
         val storageDir: File = activity.cacheDir
         return File.createTempFile(
-            imageFileName, /* prefix */
-            ".jpg",        /* suffix */
-            storageDir     /* directory */
+            imageFileName,
+            ".jpg",
+            storageDir
         )
     }
 
@@ -102,17 +123,13 @@ class CameraManager(
         )
     }
 
-    /**
-     * Should be called from the Activity’s onRequestPermissionsResult callback.
-     */
     fun handlePermissionResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (requestCode == CAMERA_PERMISSION_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                launchCameraWithFile()
+                Toast.makeText(activity, "Camera permission granted", Toast.LENGTH_SHORT).show()
             } else {
                 if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA)) {
-                    // Inform the user permission is necessary.
-                    android.widget.Toast.makeText(activity, "Camera permission denied", android.widget.Toast.LENGTH_SHORT).show()
+                    Toast.makeText(activity, "Camera permission denied", Toast.LENGTH_SHORT).show()
                 } else {
                     if (activity is MainActivity) {
                         activity.showPermissionDeniedDialog()

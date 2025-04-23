@@ -4,6 +4,9 @@
 
     <!-- Camera Permission -->
     <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="MediaStore. createWriteRequest"/>
+    <!-- <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/> -->
+    <uses-permission android:name="READ_MEDIA_IMAGES"/>
     <uses-feature android:name="android.hardware.camera" android:required="true"/>
 
     <application
@@ -35,6 +38,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".ReviewImageActivity" />
 
     </application>
 
