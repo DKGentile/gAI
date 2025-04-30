@@ -88,10 +88,10 @@ class MainActivity : AppCompatActivity(), CameraManager.FileCallback {
         btnConfirm = Button(this).apply {
             text = "Confirm"
             setOnClickListener {
-                Toast.makeText(this@MainActivity, "Picture Confirmed!", Toast.LENGTH_SHORT).show()
+                /*Toast.makeText(this@MainActivity, "Picture Confirmed!", Toast.LENGTH_SHORT).show()
                 capturedImageFile?.let { file ->
                     ApiUploader.uploadImage(file)
-                }
+                }*/
             }
             visibility = View.GONE
         }
