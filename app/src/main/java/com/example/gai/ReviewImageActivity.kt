@@ -51,27 +51,16 @@ class ReviewImageActivity : AppCompatActivity() {
             text = "Confirm"
             setOnClickListener {
                 imagePath?.let {
-                    val file = File(it)
-                    ApiUploader.uploadImage(file, onSuccess = { result ->
-                        // Show the server response as a Toast on the main thread
-                        runOnUiThread {
-                            val message = "Response: $result"
-                            Log.d("ApiResponse", message)
-                            Toast.makeText(this@ReviewImageActivity, "Response: $result", Toast.LENGTH_LONG).show()
-                        }
-                    }, onError = { error ->
-                        // Show error message in a Toast on the main thread
-                        runOnUiThread {
-                            val errorMessage = "Error: ${error.message}"
-                            Log.e("ApiResponse", errorMessage)
-                            Toast.makeText(this@ReviewImageActivity, "Error: ${error.message}", Toast.LENGTH_LONG).show()
-                        }
-                    })
-                    //Toast.makeText(this@ReviewImageActivity, "Image confirmed!", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(this@ReviewImageActivity, LoadingActivity::class.java)
+                    intent.putExtra("image_path", it)
+                    startActivity(intent)
+                    finish()
                 }
-                finish()
             }
         }
+
+
+
 
         btnDelete = Button(this).apply {
             text = "Delete"

@@ -43,6 +43,9 @@
             </intent-filter>
         </activity>
         <activity android:name=".ReviewImageActivity" />
+        <activity android:name=".ResultActivity" />
+        <activity android:name=".LoadingActivity" />
+
 
     </application>
 
