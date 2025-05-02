@@ -5,34 +5,51 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.TextView
 import java.io.File
+import android.graphics.BitmapFactory
+import android.widget.ImageView
+import android.view.Gravity
+import java.io.IOException
 
 class LoadingActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // UI: Simple layout with a loading indicator
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
             setPadding(50, 150, 50, 50)
-            gravity = android.view.Gravity.CENTER
         }
 
-        val loadingText = TextView(this).apply {
-            text = "Uploading image, please wait..."
-            textSize = 18f
+        // Load image from assets
+        val imageView = ImageView(this).apply {
+            try {
+                val inputStream = assets.open("gAItest1.png")
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                setImageBitmap(bitmap)
+                layoutParams = LinearLayout.LayoutParams(
+                    400, // width
+                    400  // height
+                ).apply {
+                    bottomMargin = 50
+                    gravity = Gravity.CENTER
+                }
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
         }
 
+        // Progress bar (indeterminate spinner)
         val progressBar = ProgressBar(this).apply {
             isIndeterminate = true
         }
 
-        layout.addView(loadingText)
+        layout.addView(imageView)
         layout.addView(progressBar)
         setContentView(layout)
 
-        // Get the image path from the Intent
+        // Upload logic
         val imagePath = intent.getStringExtra("image_path")
         if (imagePath != null) {
             val file = File(imagePath)

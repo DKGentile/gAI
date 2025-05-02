@@ -1,6 +1,8 @@
 package com.example.gai
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
@@ -8,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.view.PreviewView
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import java.io.File
@@ -77,10 +80,20 @@ class MainActivity : AppCompatActivity(), CameraManager.FileCallback {
         }
         verticalLayout.addView(imageView)
 
-        btnTakePicture = Button(this).apply {
-            text = "Take Picture"
+        val btnTakePicture = Button(this).apply {
+            text = ""
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.WHITE)
+            }
+            // Set width and height to make it a circle
+            val size = 200
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                gravity = Gravity.CENTER // Optional: center it horizontally
+                bottomMargin = 50        // Moves it up by 50 pixels from the bottom
+            }
             setOnClickListener {
-                cameraManager.takePicture() // ← this now captures instantly from preview
+                cameraManager.takePicture()
             }
         }
         verticalLayout.addView(btnTakePicture)
